@@ -52,12 +52,10 @@ export class WalletService {
     if (amount <= 0) throw new Error("Transfer amount must be positive");
     if (sourceAccountId === destAccountId) throw new Error("Cannot transfer to self");
 
-    return withTransaction(async (client) => {
-      // 1. Lock Accounts in Deterministic Order to avoid Deadlocks
+      return withTransaction(async (client) => {
       const firstId = sourceAccountId < destAccountId ? sourceAccountId : destAccountId;
       const secondId = sourceAccountId < destAccountId ? destAccountId : sourceAccountId;
 
-      // Lock both accounts
       const lockRes = await client.query(
         `SELECT id, balance, type FROM accounts WHERE id IN ($1, $2) ORDER BY id FOR UPDATE`,
         [firstId, secondId]
@@ -73,13 +71,10 @@ export class WalletService {
 
       if (!sourceAccount || !destAccount) throw new Error("Account lookup failed");
 
-      // 2. Check Balance
       const currentBalance = parseFloat(sourceAccount.balance);
       if (currentBalance < amount) {
         throw new Error("Insufficient funds");
       }
-
-      // 3. Update Balances
       const newSourceBalance = currentBalance - amount;
       await client.query(
         `UPDATE accounts SET balance = $1, updated_at = NOW() WHERE id = $2`,
@@ -92,7 +87,6 @@ export class WalletService {
         [newDestBalance, destAccountId]
       );
 
-      // 4. Record Ledger Entries
       const transactionId = await this.recordLedger(
         client,
         sourceAccountId,
@@ -125,7 +119,6 @@ export class WalletService {
     const transactionIdRes = await client.query(`SELECT gen_random_uuid() as tid`);
     const transactionId = transactionIdRes.rows[0].tid;
 
-    // Debit Entry
     await client.query(
       `INSERT INTO ledger_entries (
         transaction_id, account_id, amount, balance_after, description, type
@@ -133,7 +126,6 @@ export class WalletService {
       [transactionId, sourceId, -amount, sourceParamsBalance, description]
     );
 
-    // Credit Entry
     await client.query(
       `INSERT INTO ledger_entries (
         transaction_id, account_id, amount, balance_after, description, type
