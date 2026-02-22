@@ -15,29 +15,37 @@ It is designed to be **highly secure and robust**, making sure that NO money is 
 
 ## 🚀 How to Run It
 
-You need Docker and Node.js installed.
+You can run everything, including the database and API server, via Docker Compose.
 
-1. **Start the Database:**
+1. **Spin up the Database and Application:**
    ```bash
-   docker compose up -d
+   docker compose up --build -d
    ```
-   *(This starts a PostgreSQL database in the background on port 5433).*
+   *(This starts the PostgreSQL database and the API server in the background. The database runs on port 5433, and the API runs on port 3000. It also automatically applies database table creations inside `/src/db/migrations`)*
 
-2. **Create the Tables (Migrations):**
+2. **Run the Seed Script:**
+   To populate the database with initial users ("Alice" and "Bob") and a system Treasury, run the seed script against the running container:
    ```bash
-   npm run migrate
+   docker compose exec api npm run seed
    ```
 
-3. **Insert Fake Data (Seeds):**
-   ```bash
-   npm run seed
-   ```
-   *(This gives us a system "Treasury" account, and creates "Alice" and "Bob" with some initial Gold Coins).*
+*(Alternatively, to run natively: Start only the db with `docker compose up -d db`, install dependencies with `npm install`, then run `npm run migrate`, `npm run seed`, and start the app with `npm run dev`.)*
 
-4. **Start the API Server:**
-   ```bash
-   npm run dev
-   ```
+## 🛠️ Choice of Technology
+
+*   **Node.js / Express**: Perfect for an I/O bound application. JavaScript's asynchronous event loop manages the overhead of high-concurrency requests well.
+*   **TypeScript**: Ensures type safety across models and API requests, preventing unexpected runtime errors, specifically with data transformations like numeric balances.
+*   **PostgreSQL**: Chosen for its robust ACID compliance guarantees and mature locking mechanisms, making it the premier choice for financial/ledger datasets.
+*   **pg (node-postgres)**: A lightweight, non-blocking PostgreSQL client for Node.js, providing the necessary hooks to safely perform multi-query database transactions and row-level locks without heavy ORM bloat.
+*   **Docker / Docker Compose**: Provides deterministic environments that ensure the database, migrations, and server operate identically everywhere, maximizing developer portability.
+
+## 🔐 Strategy for Handling Concurrency
+
+The core strategy for handling concurrent requests (e.g., a user rapidly clicking "Buy") leans heavily on standard transactional constraints and row-level locking provided by PostgreSQL:
+
+1.  **Isolation via Transactions:** All updates are run inside `BEGIN ... COMMIT` PostgreSQL transaction blocks. If any part of the ledger fails (e.g., negative balance check fails after debit), the entire operation rolls back—meaning zero chance of money vanishing into thin air.
+2.  **Pessimistic Locking (`FOR UPDATE`):** When verifying user balances, the wallet account row is locked using `SELECT * FROM wallet_accounts WHERE id = $1 FOR UPDATE`. If 5 conflicting spend requests hit the database simultaneously, PostgreSQL queues them up sequentially rather than processing them at identical snapshots in time. This guarantees that double-spending is physically impossible at the row level.
+3.  **Idempotency Keys:** Every request must provide a unique `Idempotency-Key` (in HTTP headers). A middleware intercepts incoming requests and caches them. If the server sees the same key twice sequentially (due to network retries), it securely returns the cached successful response instead of repeating the underlying transaction lock logic.
 
 ## 🔌 API Endpoints
 

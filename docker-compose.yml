@@ -15,5 +15,20 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./src/db/migrations:/docker-entrypoint-initdb.d
 
+  api:
+    build: .
+    container_name: wallet_api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_USER=admin
+      - DB_PASSWORD=admin
+      - DB_NAME=wallet
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      - db
+
 volumes:
   postgres_data:
