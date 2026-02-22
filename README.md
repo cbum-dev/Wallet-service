@@ -39,6 +39,25 @@ You can run everything, including the database and API server, via Docker Compos
 *   **pg (node-postgres)**: A lightweight, non-blocking PostgreSQL client for Node.js, providing the necessary hooks to safely perform multi-query database transactions and row-level locks without heavy ORM bloat.
 *   **Docker / Docker Compose**: Provides deterministic environments that ensure the database, migrations, and server operate identically everywhere, maximizing developer portability.
 
+## 🌍 Deployment (Render)
+
+This application is ready to be deployed to a public cloud provider like [Render](https://render.com) using Infrastructure as Code (the included `render.yaml` file).
+
+1. Push this repository to your GitHub account.
+2. Log in to Render and click **New** -> **Blueprint**.
+3. Connect your GitHub repository.
+4. Render will automatically read `render.yaml` and provision:
+   * A free **PostgreSQL Database** (`wallet-db`).
+   * A free **Node.js Web Service** (`wallet-api`), automatically securely injecting the `DATABASE_URL`.
+5. Once your services are live, Render will provide a public URL (e.g., `https://wallet-api-xyz.onrender.com`).
+
+**Note on Production Setup:** 
+Once deployed, open the "Shell" tab for your Web Service in the Render Dashboard and manually run the setup scripts to initialize the production database:
+```bash
+npm run migrate
+npm run seed
+```
+
 ## 🔐 Strategy for Handling Concurrency
 
 The core strategy for handling concurrent requests (e.g., a user rapidly clicking "Buy") leans heavily on standard transactional constraints and row-level locking provided by PostgreSQL:
